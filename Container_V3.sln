@@ -17,6 +17,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "wcx-harness", "tools\wcx-harness\wcx-harness.csproj", "{1586E18B-04EE-462E-88A1-43E90C018FE8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Container.Core.Tests", "Container.Core.Tests\Container.Core.Tests.csproj", "{E757309E-20B2-491D-B183-8D5DFD237D27}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -93,6 +95,18 @@ Global
 		{1586E18B-04EE-462E-88A1-43E90C018FE8}.Release|x64.Build.0 = Release|x64
 		{1586E18B-04EE-462E-88A1-43E90C018FE8}.Release|x86.ActiveCfg = Release|x64
 		{1586E18B-04EE-462E-88A1-43E90C018FE8}.Release|x86.Build.0 = Release|x64
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|x64.Build.0 = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Debug|x86.Build.0 = Debug|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|x64.ActiveCfg = Release|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|x64.Build.0 = Release|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|x86.ActiveCfg = Release|Any CPU
+		{E757309E-20B2-491D-B183-8D5DFD237D27}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
