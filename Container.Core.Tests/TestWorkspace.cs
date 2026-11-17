@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using Container_V3.Compressors;
+using Container_V3.Hashers;
+using Container_V3.Unpacking;
 
 namespace Container_V3.Tests;
 
@@ -86,12 +89,46 @@ public sealed class TestWorkspace : IDisposable
 
     public static string HashOf(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
+    public static void CopyTree(string source, string target)
+    {
+        Directory.CreateDirectory(target);
+
+        // Пустые папки создаются отдельным проходом: GetFiles их не возвращает, а структура дерева держится на них.
+        foreach (string dir in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, dir)));
+
+        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string destination = Path.Combine(target, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, overwrite: true);
+        }
+    }
+
+    public static void MirrorFile(string mirrorRoot, string relative, string sourceFile)
+    {
+        string target = Path.Combine(mirrorRoot, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(sourceFile, target, overwrite: true);
+    }
+
     public static void WriteRandom(string path, int size, int seed)
     {
         var rng = new Random(seed);
         byte[] data = new byte[size];
         rng.NextBytes(data);
         File.WriteAllBytes(path, data);
+    }
+
+    public static void UnpackCompare(string container, string expectedRoot, string target)
+    {
+        if (Directory.Exists(target)) Directory.Delete(target, true);
+        Directory.CreateDirectory(target);
+
+        using var unpacker = new ContainerUnpacker(container, new ZstdCompressor(3), new Sha256Hasher());
+        unpacker.UnpackAll(target);
+
+        CompareTrees(expectedRoot, target);
     }
 
     public void Dispose()
