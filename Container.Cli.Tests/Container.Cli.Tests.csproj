@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- xUnit-тесты разбора аргументов командной строки (Container_V3/Cli.cs).
+       Единственная часть selftest, которая не относится к Container.Core:
+       CLI проверяет пользовательский ввод, ядро проверяет параметры упаковки.
+       TFM совпадает с CLI-проектом (net10.0-windows), иначе ссылка на сборку не соберётся. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>Container.Cli.Tests</AssemblyName>
+    <!-- Не Container_V3.Cli.Tests: внутри такого пространства имён имя Cli разрешалось бы в
+         его же сегмент «Container_V3.Cli», а не в класс Cli, и Cli.Options не компилировалось. -->
+    <RootNamespace>Container_V3.CliTests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Container_V3\Container_V3.csproj" />
+  </ItemGroup>
+
+</Project>
