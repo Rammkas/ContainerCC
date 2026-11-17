@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true"
+    android:padding="6dp">
+
+  <TextView
+      android:id="@+id/pathLabel"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:textSize="14sp"
+      android:textStyle="bold"
+      android:textIsSelectable="true" />
+
+  <!-- Надписи заглавными написаны прямо здесь: на части телефонов кнопки сами
+       приводили текст к верхнему регистру, на части — нет, и вид получался разный. -->
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal">
+
+    <Button
+      android:id="@+id/settingsButton"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textSize="11sp"
+      android:textAllCaps="false"
+      android:text="НАСТРОЙКИ" />
+
+    <!-- Кнопки «выше» здесь больше нет: в списке первой строкой идёт «.. (выше)»,
+         которая делает то же самое. -->
+    <Button
+      android:id="@+id/refreshButton"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textSize="11sp"
+      android:textAllCaps="false"
+      android:text="ОБНОВИТЬ" />
+
+    <Button
+      android:id="@+id/selectAllButton"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textSize="11sp"
+      android:textAllCaps="false"
+      android:text="ВЫДЕЛИТЬ" />
+
+    <Button
+      android:id="@+id/actionsButton"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textSize="11sp"
+      android:textAllCaps="false"
+      android:text="ДЕЙСТВИЯ" />
+
+    <Button
+      android:id="@+id/stopButton"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textSize="11sp"
+      android:textAllCaps="false"
+      android:visibility="gone"
+      android:text="СТОП" />
+  </LinearLayout>
+
+  <TextView
+      android:id="@+id/hintText"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:textSize="12sp"
+      android:text="@string/hint" />
+
+  <ProgressBar
+      android:id="@+id/progressBar"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:indeterminate="true"
+      android:visibility="gone" />
+
+  <TextView
+      android:id="@+id/statusText"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:textSize="13sp"
+      android:minLines="2" />
+
+  <ListView
+      android:id="@+id/fileList"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1" />
+</LinearLayout>

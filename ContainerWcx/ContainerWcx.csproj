@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- WCX-плагин Total Commander: вход в .cc как в папку, копирование файлов из контейнера.
+       TC грузит плагины через LoadLibrary, поэтому managed-DLL не подойдёт — нужен нативный
+       DLL с экспортами: только NativeAOT даёт их без запущенной .NET-среды. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>ContainerCC</AssemblyName>
+    <RootNamespace>ContainerWcx</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <StripSymbols>true</StripSymbols>
+
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>1.3.1</Version>
+    <Description>WCX-плагин Total Commander x64 для контейнеров Container_V3 (.cc): просмотр, извлечение, добавление и удаление файлов и папок, полоса прогресса</Description>
+
+    <PublishDir>$(MSBuildThisFileDirectory)..\publish\wcx-plugin\</PublishDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Формат контейнера и логика распаковки — те же, что у CLI: плагин не duplicate-читатель.
+         Ссылка на ядро, а не на CLI: в сборку плагина больше не попадает лишний Container_V3.exe. -->
+    <ProjectReference Include="..\Container.Core\Container.Core.csproj" />
+  </ItemGroup>
+
+</Project>

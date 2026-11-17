@@ -1,0 +1,25 @@
+# --- Артефакты сборки .NET ---
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# --- Релизы и публикация (создаются publish.ps1 / tools/make-release.ps1) ---
+dist/
+publish/
+
+# --- Рабочая директория харнесса верификации (логи, фикстуры, снапшоты src) ---
+.harness/
+
+# --- Резервные копии wincmd.ini (личные данные пользователя TC) ---
+tools/ini-backups/
+
+# --- Артефакты тестов/прогонов ---
+*.log
+last-run.txt
+compare-run.txt
+
+# --- IDE / OS ---
+*.DS_Store
+Thumbs.db

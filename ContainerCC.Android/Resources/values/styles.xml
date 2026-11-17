@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Три темы на выбор в настройках. Все три строятся на базовых темах Android,
+     которые есть на каждой поддерживаемой версии (API 24 и выше): свои цвета не задаём,
+     поэтому список, кнопки и текстовые поля перекрашиваются сами. -->
+
+  <!-- Как в системе: следует за общей темой устройства (на части телефонов переключается
+     вместе с тёмным режимом Android, на части остаётся светлой — тогда выбирайте тему явно). -->
+  <style name="Theme.ContainerCC.System" parent="@android:style/Theme.DeviceDefault" />
+
+  <style name="Theme.ContainerCC.Light" parent="@android:style/Theme.Material.Light" />
+
+  <style name="Theme.ContainerCC.Dark" parent="@android:style/Theme.Material" />
+</resources>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Переносимое ядро формата .cc: чтение, упаковка, распаковка, изменение контейнера.
+       Здесь нет ни одного вызова Windows — TFM обычный net10.0, а не net10.0-windows,
+       поэтому это же ядро можно собрать под Android (net11.0-android) без правок.
+       CLI (Container_V3) и WCX-плагин (ContainerWcx) ссылаются на этот проект. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Container.Core</AssemblyName>
+    <RootNamespace>Container_V3</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>1.3.1</Version>
+    <Description>Ядро контейнеров Container_V3 (.cc): заголовок, индекс, чанки zstd + SHA-256, упаковка, распаковка, добавление/удаление/уплотнение. Без зависимости от Windows.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="10.0.10" />
+    <ProjectReference Include="..\ZstdSharp\ZstdSharp.csproj" />
+  </ItemGroup>
+
+</Project>
