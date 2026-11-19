@@ -327,8 +327,9 @@ public class WcxLayoutFixture : IDisposable
 /// Прогон дорогой (сотни обращений к плагину), поэтому тесты сверяют разные секции одного TSV,
 /// а не гоняют харнесс заново.
 ///
-/// Плагин собирается, если его нет или задан WCX_REBUILD=1. Без MSVC-тулчейна сборка невозможна
-/// и тесты этой группы упадут с внятной подсказкой — на CI их отфильтровывают трейтом:
+/// Плагин собирается, если его нет или задан WCX_REBUILD=1. Отдельно тулчейн не выпытывается:
+/// NativeAOT может обойтись без cl.exe в PATH, поэтому решение о сборке отдаёт сам publish,
+/// а его провал объясняет подсказку про фильтр:
 ///   dotnet test Container_V3.sln --filter "Category!=WcxNative"
 /// Ключ именно Category: адаптер VSTest кладёт Trait("Category", ...) в свойство Category,
 /// а TestCategory к трейтам xUnit не применяется (проверено на xunit 2.9.3).
@@ -396,19 +397,6 @@ public sealed class WcxHarnessFixture : WcxLayoutFixture
             return;
         }
 
-        if (!HasNativeToolchain())
-        {
-            if (!File.Exists(PluginPath))
-            {
-                throw new InvalidOperationException(
-                    $"нет плагина {PluginPath} и нет нативного тулчейна (cl.exe из Visual Studio): "
-                    + "NativeAOT-плагин в этой среде собрать нельзя. На CI без Visual Studio эти тесты "
-                    + "отфильтровывают так: dotnet test --filter \"Category!=WcxNative\"");
-            }
-
-            return;
-        }
-
         lock (BuildLock)
         {
             ProcessResult result = RunProcess(DotnetPath,
@@ -418,26 +406,12 @@ public sealed class WcxHarnessFixture : WcxLayoutFixture
 
             if (result.ExitCode != 0 || !File.Exists(PluginPath))
             {
-                throw new InvalidOperationException($"не собрался NativeAOT-плагин (exit {result.ExitCode}):\n{result.StdOut}\n{result.StdErr}");
+                throw new InvalidOperationException(
+                    $"не собрался NativeAOT-плагин (exit {result.ExitCode}). Если в этой среде нет AOT-тулчейна, "
+                    + "эти тесты отсеивают фильтром: dotnet test --filter \"Category!=WcxNative\"\n"
+                    + $"{result.StdOut}\n{result.StdErr}");
             }
         }
     }
 
-    private static bool HasNativeToolchain()
-    {
-        return Probe("cl.exe", ["/?"])
-            || Probe("vswhere.exe", ["-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"]);
-    }
-
-    private static bool Probe(string fileName, string[] args)
-    {
-        try
-        {
-            return RunProcess(fileName, args, null, TimeSpan.FromMinutes(2)).ExitCode == 0;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
 }
