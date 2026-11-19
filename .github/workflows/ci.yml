@@ -1,0 +1,69 @@
+name: CI
+
+# Две проверки: быстрая (раскладка, разбор аргументов, ядро, CLI) и тяжёлая — полный прогон
+# харнесса по собранному NativeAOT-плагину. Разбор 14.1 (диалог «Настроить») в CI не запускается:
+# он требует интерактивного рабочего стола, поэтому WCX_GUI остаётся незаданной, и харнесс
+# проходит этот участок с --skip-settings. `Container_V3.exe selftest` остаётся ручной проверкой.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  tests:
+    name: Ядро, CLI и раскладка WCX (без плагина)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          # Проект targets net10.0-windows. Если понадобится SDK с preview-возможностями,
+          # добавить dotnet-quality: preview или global.json.
+          dotnet-version: 10.0.x
+
+      - name: Сборка
+        run: dotnet build Container_V3.sln -c Release --nologo
+
+      - name: Тесты (нативные отфильтрованы — трейт Category=WcxNative)
+        run: dotnet test Container_V3.sln -c Release --nologo --filter "Category!=WcxNative"
+
+  wcx-native:
+    name: Полный прогон харнесса по плагину
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # vcvars64.bat ищется перебором: редации и годы установки различаются (BuildTools, Insiders).
+      # cl.exe проверяется здесь как признак готового окружения MSVC; саму сборку NativeAOT решает
+      # dotnet publish (без vcvars она не проходит), поэтому проверка и прогон — один batch-шаг.
+      # Внутри if (...) нельзя писать %ProgramFiles(x86)%: скобка имени ломает разбор блока.
+      - name: Тесты харнесса (Category=WcxNative)
+        shell: cmd
+        run: |
+          set "VCVARS="
+          for /f "delims=" %%f in ('dir /b /s /a-d "C:\Program Files\Microsoft Visual Studio\*vcvars64.bat" 2^>nul') do set "VCVARS=%%f"
+          if not defined VCVARS (
+            for /f "delims=" %%f in ('dir /b /s /a-d "C:\Program Files (x86)\Microsoft Visual Studio\*vcvars64.bat" 2^>nul') do set "VCVARS=%%f"
+          )
+          if not defined VCVARS (
+            echo MSVC not found: vcvars64.bat is missing, NativeAOT plugin cannot be built. 1>&2
+            exit /b 1
+          )
+          call "%VCVARS%" >nul
+          cl.exe /? >nul || (echo cl.exe does not work after vcvars64. 1>&2 & exit /b 1)
+          dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release --nologo --filter "Category=WcxNative"
