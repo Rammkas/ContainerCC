@@ -36,7 +36,15 @@ jobs:
         run: dotnet build Container_V3.sln -c Release --nologo
 
       - name: Тесты (нативные отфильтрованы — трейт Category=WcxNative)
-        run: dotnet test Container_V3.sln -c Release --nologo --filter "Category!=WcxNative"
+        run: dotnet test Container_V3.sln -c Release --nologo --filter "Category!=WcxNative" --logger "trx" --results-directory TestResults
+
+      # dotnet test не пишет annotations с именами упавших тестов, а логи шага доступны только
+      # авторизованному читателю. TRX создаётся независимо от итога шага, поэтому разбор делает
+      # отдельный шаг: его ::error-строки видно и в логе, и в annotations job'а.
+      - name: Итоги упавших тестов
+        if: ${{ failure() }}
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/ci/test-summary.ps1 -ResultsDirectory TestResults
 
   wcx-native:
     name: Полный прогон харнесса по плагину
@@ -65,5 +73,13 @@ jobs:
             exit /b 1
           )
           call "%VCVARS%" >nul
+          echo using vcvars: %VCVARS%
           cl.exe /? >nul || (echo cl.exe does not work after vcvars64. 1>&2 & exit /b 1)
-          dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release --nologo --filter "Category=WcxNative"
+          dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release -p:Platform=x64 --nologo --filter "Category=WcxNative" --logger "trx" --results-directory TestResults
+
+      # Тот же разбор TRX: без него провал харнесса виден только как "exit code 1".
+      # Если TRX нет — значит шаг упал до запуска тестов (vcvars, cl.exe или компиляция).
+      - name: Итоги упавших тестов
+        if: ${{ failure() }}
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/ci/test-summary.ps1 -ResultsDirectory TestResults

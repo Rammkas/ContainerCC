@@ -22,6 +22,7 @@ local/
 *.log
 last-run.txt
 compare-run.txt
+TestResults*/
 
 # --- IDE / OS ---
 *.DS_Store
