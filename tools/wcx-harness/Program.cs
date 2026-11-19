@@ -38,6 +38,12 @@ internal static unsafe partial class Program
 
     private static int Main(string[] args)
     {
+        // Сообщения харнесса — кириллицей. Консоль Windows кодирует вывод кодовой страницей OEM:
+        // на русскоязычной машине это 866 и кириллица проходит, на CI-раннере (США) — 437, где
+        // каждый знак превращается в '?'. Кодировка фиксируется явно и без BOM, чтобы читающая
+        // сторона (ContainerWcx.Tests) могла сверять строки на любой машине.
+        Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
         Options? options = Options.Parse(args);
         if (options is null)
             return 2;

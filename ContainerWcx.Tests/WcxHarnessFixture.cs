@@ -23,7 +23,8 @@ public class WcxLayoutFixture : IDisposable
     public WcxLayoutFixture()
     {
         RepoRoot = FindRepoRoot();
-        HarnessExe = Path.Combine(RepoRoot, "tools", "wcx-harness", "bin", "Release", "net10.0-windows", "win-x64", "wcx-harness.exe");
+        HarnessProjectDir = Path.Combine(RepoRoot, "tools", "wcx-harness");
+        HarnessExe = Path.Combine(HarnessProjectDir, "bin", "Release", "net10.0-windows", "win-x64", "wcx-harness.exe");
         PluginPath = Path.Combine(RepoRoot, "publish", "wcx-plugin", "ContainerCC.dll");
 
         _root = Path.Combine(Path.GetTempPath(), "container_v3_tests", "wcx-" + Guid.NewGuid().ToString("N"));
@@ -38,7 +39,8 @@ public class WcxLayoutFixture : IDisposable
     }
 
     public string RepoRoot { get; }
-    public string HarnessExe { get; }
+    public string HarnessProjectDir { get; }
+    public string HarnessExe { get; private set; }
     public string PluginPath { get; }
     public string SourceDir { get; }
     public string ContainerPath { get; }
@@ -125,15 +127,86 @@ public class WcxLayoutFixture : IDisposable
     {
         lock (HarnessBuildLock)
         {
-            ProcessResult result = RunProcess(DotnetPath,
-                ["build", Path.Combine(RepoRoot, "tools", "wcx-harness", "wcx-harness.csproj"),
-                 "-c", "Release", "--nologo", "-v", "q"],
-                RepoRoot, TimeSpan.FromMinutes(10));
+            // -p:Platform наследуется от тестового проекта: `dotnet test -p:Platform=x64` иначе
+            // заставил бы харнесс собраться в другую папку bin\<Configuration> и фикстуар не нашёл бы exe.
+            // MSBuild отдаёт Platform и тестовому хосту через переменную окружения.
+            List<string> arguments =
+            [
+                "build", Path.Combine(HarnessProjectDir, "wcx-harness.csproj"),
+                "-c", "Release", "--nologo", "-v", "q",
+            ];
+            string? platform = PlatformToForward();
+            if (platform is not null)
+                arguments.Add("-p:Platform=" + platform);
 
-            if (result.ExitCode != 0 || !File.Exists(HarnessExe))
+            ProcessResult result = RunProcess(DotnetPath, arguments, RepoRoot, TimeSpan.FromMinutes(10));
+            if (result.ExitCode != 0)
             {
                 throw new InvalidOperationException($"не собрался харнесс (exit {result.ExitCode}):\n{result.StdOut}\n{result.StdErr}");
             }
+
+            // Путь к exe собираем не по памяти, а ищем в bin после сборки: TFM и RID в csproj
+            // меняются чаще, чем это замечает жёстко зашитая строка.
+            if (!File.Exists(HarnessExe))
+                HarnessExe = FindHarnessExe() ?? HarnessExe;
+
+            if (!File.Exists(HarnessExe))
+            {
+                throw new InvalidOperationException(
+                    $"сборка прошла, но не найден {HarnessExe}. Содержимое {Path.Combine(HarnessProjectDir, "bin")}:\n"
+                    + ListHarnessBin() + "\n" + result.StdOut + "\n" + result.StdErr);
+            }
+        }
+    }
+
+    private string? FindHarnessExe()
+    {
+        string binRoot = Path.Combine(HarnessProjectDir, "bin");
+        if (!Directory.Exists(binRoot))
+            return null;
+
+        foreach (string candidate in Directory.EnumerateFiles(binRoot, "wcx-harness.exe", SearchOption.AllDirectories))
+        {
+            if (candidate.Contains(Path.DirectorySeparatorChar + "Release" + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Платформу тестового проекта (`dotnet test -p:Platform=x64`) MSBuild передаёт тестовому хосту
+    /// через переменную окружения Platform. Вложенные build/publish обязаны получить её иначе
+    /// артефакты попадут в bin\&lt;другая платформа&gt;\ и фикстуар их не найдёт.
+    /// </summary>
+    protected static string? PlatformToForward()
+    {
+        string? platform = Environment.GetEnvironmentVariable("WCX_HARNESS_PLATFORM")
+            ?? Environment.GetEnvironmentVariable("Platform");
+
+        return string.IsNullOrWhiteSpace(platform) ? null : platform.Trim();
+    }
+
+    private string ListHarnessBin()
+    {
+        try
+        {
+            string binRoot = Path.Combine(HarnessProjectDir, "bin");
+            if (!Directory.Exists(binRoot))
+                return "папка bin отсутствует";
+
+            var lines = new List<string>();
+            foreach (string file in Directory.EnumerateFiles(binRoot, "*", SearchOption.AllDirectories))
+                lines.Add(file.Substring(binRoot.Length));
+            lines.Sort(StringComparer.OrdinalIgnoreCase);
+            return lines.Count == 0 ? "папка bin пуста" : string.Join("\n", lines.Take(60));
+        }
+        catch (Exception ex)
+        {
+            return $"не удалось перечислить bin: {ex.Message}";
         }
     }
 
@@ -217,6 +290,12 @@ public class WcxLayoutFixture : IDisposable
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            // Кириллица в stdout/stderr дочернего процесса: без явной кодировки её кодируют
+            // кодовой страницей консоли (на CI-раннере — 437, где кириллица становится '?').
+            // Харнесс пишет UTF-8 (Console.OutputEncoding в Program.cs), здесь та же кодировка
+            // задаётся читающей стороне.
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
 
         foreach (string argument in arguments)
@@ -399,10 +478,16 @@ public sealed class WcxHarnessFixture : WcxLayoutFixture
 
         lock (BuildLock)
         {
-            ProcessResult result = RunProcess(DotnetPath,
-                ["publish", Path.Combine(RepoRoot, "ContainerWcx", "ContainerWcx.csproj"),
-                 "-c", "Release", "-r", "win-x64", "--nologo", "-v", "q"],
-                RepoRoot, TimeSpan.FromMinutes(25));
+            List<string> arguments =
+            [
+                "publish", Path.Combine(RepoRoot, "ContainerWcx", "ContainerWcx.csproj"),
+                "-c", "Release", "-r", "win-x64", "--nologo", "-v", "q",
+            ];
+            string? platform = PlatformToForward();
+            if (platform is not null)
+                arguments.Add("-p:Platform=" + platform);
+
+            ProcessResult result = RunProcess(DotnetPath, arguments, RepoRoot, TimeSpan.FromMinutes(25));
 
             if (result.ExitCode != 0 || !File.Exists(PluginPath))
             {

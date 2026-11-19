@@ -24,9 +24,9 @@ jobs:
     name: Ядро, CLI и раскладка WCX (без плагина)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           # Проект targets net10.0-windows. Если понадобится SDK с preview-возможностями,
           # добавить dotnet-quality: preview или global.json.
@@ -50,9 +50,9 @@ jobs:
     name: Полный прогон харнесса по плагину
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -62,6 +62,11 @@ jobs:
       # Внутри if (...) нельзя писать %ProgramFiles(x86)%: скобка имени ломает разбор блока.
       - name: Тесты харнесса (Category=WcxNative)
         shell: cmd
+        env:
+          # Фикстуар сам вызывает dotnet build/publish для харнесса и плагина. Тестовый хост
+          # не получает Platform как переменную окружения, поэтому платформа передаётся явно:
+          # иначе вложенная сборка может выдать артефакты в другую папку bin.
+          WCX_HARNESS_PLATFORM: x64
         run: |
           set "VCVARS="
           for /f "delims=" %%f in ('dir /b /s /a-d "C:\Program Files\Microsoft Visual Studio\*vcvars64.bat" 2^>nul') do set "VCVARS=%%f"
