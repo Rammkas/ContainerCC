@@ -329,7 +329,9 @@ public class WcxLayoutFixture : IDisposable
 ///
 /// Плагин собирается, если его нет или задан WCX_REBUILD=1. Без MSVC-тулчейна сборка невозможна
 /// и тесты этой группы упадут с внятной подсказкой — на CI их отфильтровывают трейтом:
-///   dotnet test Container_V3.sln --filter "TestCategory!=WcxNative"
+///   dotnet test Container_V3.sln --filter "Category!=WcxNative"
+/// Ключ именно Category: адаптер VSTest кладёт Trait("Category", ...) в свойство Category,
+/// а TestCategory к трейтам xUnit не применяется (проверено на xunit 2.9.3).
 /// WCX_BUILD_PLUGIN=0 запрещает сборку (используется только готовый publish\wcx-plugin).
 /// </summary>
 public sealed class WcxHarnessFixture : WcxLayoutFixture
@@ -401,7 +403,7 @@ public sealed class WcxHarnessFixture : WcxLayoutFixture
                 throw new InvalidOperationException(
                     $"нет плагина {PluginPath} и нет нативного тулчейна (cl.exe из Visual Studio): "
                     + "NativeAOT-плагин в этой среде собрать нельзя. На CI без Visual Studio эти тесты "
-                    + "отфильтровывают так: dotnet test --filter \"TestCategory!=WcxNative\"");
+                    + "отфильтровывают так: dotnet test --filter \"Category!=WcxNative\"");
             }
 
             return;

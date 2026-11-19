@@ -13,7 +13,7 @@ public sealed class WcxLayoutCollection : ICollectionFixture<WcxLayoutFixture>
 
 /// <summary>
 /// Тесты, которым нужен собранный NativeAOT-плагин и полный прогон харнесса: один дорогой
-/// фикстуар на оба класса. Отфильтровываются на CI без Visual Studio трейтом WcxNative.
+/// фикстуар на оба класса. Отфильтровываются на CI без Visual Studio трейтом Category=WcxNative.
 /// </summary>
 [CollectionDefinition(WcxNativeCollection.Name)]
 public sealed class WcxNativeCollection : ICollectionFixture<WcxHarnessFixture>

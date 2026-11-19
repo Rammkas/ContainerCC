@@ -7,7 +7,8 @@ namespace Container_V3.WcxTests;
 /// отработала, проваленных проверок «без секции» нет.
 ///
 /// Трейт WcxNative: тестам нужен собранный NativeAOT-плагин (нужен MSVC). На CI без Visual
-/// Studio их отфильтровывают: dotnet test --filter "TestCategory!=WcxNative"
+/// Studio их отфильтровывают: dotnet test --filter "Category!=WcxNative"
+/// (ключ Category, не TestCategory: Trait("Category", ...) ложится в свойство Category).
 /// </summary>
 [Collection(WcxNativeCollection.Name)]
 [Trait("Category", "WcxNative")]
