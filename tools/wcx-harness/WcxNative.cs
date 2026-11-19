@@ -56,6 +56,7 @@ internal static class Wcx
     public const int E_BAD_ARCHIVE = 13;
     public const int E_UNKNOWN_FORMAT = 14;
     public const int E_EOPEN = 15;
+    public const int E_EWRITE = 19; // диск отказался записать файл (в том числе имя с «?»)
     public const int E_EABORTED = 21;
     public const int E_NOT_SUPPORTED = 24;
 

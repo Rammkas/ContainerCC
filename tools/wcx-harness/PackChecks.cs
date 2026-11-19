@@ -503,6 +503,9 @@ internal static unsafe partial class Program
     /// 32-битный TC (и любой клиент «первого издания») зовёт PackFiles/DeleteFiles без суффикса W,
     /// а имена там — байты в кодовой странице системы. Проверяем, что запись, положенную через ANSI,
     /// читает юникод-ветка, причём дословно, включая кириллицу: у плагина и у ядра одно правило имён.
+    /// Имена берём через CodePageNames.Pick: на CP_ACP = 1251 это кириллица (как и прежде), на 1252
+    /// (CI-машина) — латиница с диакритикой. Непредставимое имя хост превратил бы в «?», и проход
+    /// 15 сравнивал бы уже не плагин, а кодовую страницу машины.
     /// </summary>
     private static void RunPackAnsi(Plugin plugin, Options options)
     {
@@ -526,9 +529,12 @@ internal static unsafe partial class Program
         Recreate(ansiDir);
 
         string srcDir = Path.Combine(ansiDir, "src");
-        Directory.CreateDirectory(Path.Combine(srcDir, @"ansi-папка"));
+        string folderName = CodePageNames.Pick("ansi-папка", "ansi-pápka", "ansi-papka");
+        string insideName = CodePageNames.Pick("отчёт.txt", "otchyót.txt", "otchet.txt");
+
+        Directory.CreateDirectory(Path.Combine(srcDir, folderName));
         WriteText(Path.Combine(srcDir, "ansi.txt"), "запись, положенная через ANSI PackFiles\r\n");
-        WriteText(Path.Combine(srcDir, "ansi-папка", "отчёт.txt"), "имя в кодовой странице системы\r\n");
+        WriteText(Path.Combine(srcDir, folderName, insideName), "имя в кодовой странице системы\r\n");
 
         string container = Path.Combine(ansiDir, "ansi-pack.cc");
 
@@ -536,7 +542,7 @@ internal static unsafe partial class Program
         Check(plugin.SetProcessDataProc(0, ansiProgress.Handle) == 0,
             "SetProcessDataProc(0, колбэк) перед PackFiles (ANSI) вернул 0");
 
-        int code = PackA(plugin, container, null, srcDir, new[] { "ansi.txt", "ansi-папка" }, 0);
+        int code = PackA(plugin, container, null, srcDir, new[] { "ansi.txt", folderName }, 0);
         Check(code == 0, $"PackFiles (ANSI) вернул {Wcx.ErrorName(code)}");
 
         ContainerModel model = new();
@@ -557,20 +563,20 @@ internal static unsafe partial class Program
         Check(ExtractAllW(plugin, container, Path.Combine(ansiDir, "out")) == 0, "ANSI-записи извлечены W-веткой");
         CompareModel(Path.Combine(ansiDir, "out"), model, "содержимое ANSI-контейнера");
 
-        // Del на папке приходит маской её содержимого и в ANSI-ветке: «ansi-папка\*.*».
+        // Del на папке приходит маской её содержимого и в ANSI-ветке: «<папка>\*.*».
         string maskCopy = Path.Combine(ansiDir, "ansi-mask.cc");
         File.Copy(container, maskCopy, overwrite: true);
-        int maskCode = DeleteA(plugin, maskCopy, new[] { @"ansi-папка\*.*" });
-        Check(maskCode == 0, $"DeleteFiles (ANSI) с маской «ansi-папка\\*.*» вернул {Wcx.ErrorName(maskCode)}");
+        int maskCode = DeleteA(plugin, maskCopy, new[] { $@"{folderName}\*.*" });
+        Check(maskCode == 0, $"DeleteFiles (ANSI) с маской «{folderName}\\*.*» вернул {Wcx.ErrorName(maskCode)}");
         ContainerModel maskModel = new();
         maskModel.MergeFrom(Snapshot.Collect(srcDir));
-        maskModel.Remove("ansi-папка");
+        maskModel.Remove(folderName);
         CheckListing(ReadListing(plugin, maskCopy, verbose: false), maskModel,
-            "ANSI-контейнер после удаления папки маской: «ansi-папка» исчезла вместе с содержимым");
+            $"ANSI-контейнер после удаления папки маской: «{folderName}» исчезла вместе с содержимым");
 
-        int deleteCode = DeleteA(plugin, container, new[] { "ansi-папка" });
+        int deleteCode = DeleteA(plugin, container, new[] { folderName });
         Check(deleteCode == 0, $"DeleteFiles (ANSI) по имени папки вернул {Wcx.ErrorName(deleteCode)}");
-        model.Remove("ansi-папка");
+        model.Remove(folderName);
         CheckListing(ReadListing(plugin, container, verbose: false), model, "список после ANSI-удаления папки");
 
         // Остановка из ANSI-колбэка: PackFiles возвращает E_EABORTED, прежний контейнер остаётся целым.
@@ -590,6 +596,140 @@ internal static unsafe partial class Program
         int refused = PackA(plugin, container, null, srcDir, new[] { @"..\outside.txt" }, 0);
         Check(refused == Wcx.E_NOT_SUPPORTED,
             $"PackFiles (ANSI) с именем [..\\outside.txt] вернул {Wcx.ErrorName(refused)}, ожидалось E_NOT_SUPPORTED");
+
+        Console.WriteLine();
+    }
+
+    // ─────────────────── проход 16: имена вне кодовой страницы системы ───────────────────
+
+    /// <summary>
+    /// ANSI-ветка получает имена байтами кодовой страницы системы, и символов, которых в ней нет,
+    /// хост уже не донесёт: Win32 заменяет их знаком «?». Проба — имя с U+4E2D: символа нет ни в 1251
+    /// (домашняя CP_ACP), ни в 1252 (CP_ACP CI-раннера), поэтому на обеих машинах хост приносит «?»
+    /// и проверяется поведение плагина, а не удачное совпадение кодовых страниц. π для пробы не
+    /// годится: без WC_NO_BEST_FIT_CHARS в 1252 он best-fit сворачивается в «p», и имя стало бы
+    /// законным. Проверяем, что в ANSI-списке имя показано как проекция кодовой страницы, PK_TEST
+    /// проходит (на диск не пишет), PK_EXTRACT возвращает E_EWRITE (диск «?» не примет), ANSI-
+    /// упаковка такого имени отказывается до записи, а юникод-ветка видит символ дословно и работает
+    /// без единой ошибки. Ожидания выводятся из фактической проекции имени, а не из номера кодовой
+    /// страницы: там, где страница символ вмещает (UTF-8, 936), те же проверки ждут успеха.
+    /// </summary>
+    private static void RunAnsiCodePageQuirk(Plugin plugin, Options options)
+    {
+        Section("проход 16: имена вне кодовой страницы системы — ANSI-ветка и символ, ставший «?»");
+
+        if (!plugin.HasAnsiBranch || !plugin.HasPackW || !plugin.HasPackAnsi)
+        {
+            Console.WriteLine("  ПРОПУСК: нужны ANSI-ветка и обе ветки PackFiles (см. проходы 7–13 и 15)");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine($"  CP_ACP = {AnsiCodePage.CurrentCodePage()}; имя-проба содержит U+4E2D, которого нет "
+            + "ни в 1251, ни в 1252 — хост превращает его в «?», и проверяем мы теперь именно это поведение, "
+            + "а не удачное совпадение кодовых страниц");
+
+        string dir = Path.Combine(options.AnsiWorkDir, "codepage");
+        Recreate(dir);
+
+        string srcDir = Path.Combine(dir, "src");
+        Directory.CreateDirectory(srcDir);
+
+        // Символ написан побегом, чтобы имя пробы не зависело от того, как данный редактор хранит файл.
+        const string oddName = "probe-\u4E2D.txt";
+        const string okName = "probe-ok.txt";
+        WriteText(Path.Combine(srcDir, oddName), "имя с символом вне кодовой страницы системы\r\n");
+        WriteText(Path.Combine(srcDir, okName), "обычное имя, которое кодовая страница умеет\r\n");
+
+        string oddProjected = AnsiCodePage.Project(oddName);
+        bool projectedIsLegal = oddProjected.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+        Console.WriteLine($"  {Quote(oddName)} → в CP_ACP это {Quote(oddProjected)}"
+            + (oddProjected == oddName ? " (представимо)" : projectedIsLegal
+                ? " (свёрнуто best-fit в другой допустимый символ)" : " (не представимо)"));
+        Console.WriteLine("  кодовая страница сворачивает U+4E2D в «?»: ANSI-ветка ждёт отказов там, где юникод-ветка работает");
+
+        ContainerModel model = new();
+        model.MergeFrom(Snapshot.Collect(srcDir));
+
+        // Best-fit-побег: если страница заменила символ другим допустимым символом, имя-проекция
+        // появляется источником, чтобы проверка ANSI-упаковки не свалилась в «нет такого файла».
+        if (projectedIsLegal && oddProjected != oddName)
+            WriteText(Path.Combine(srcDir, oddProjected), "имя, в которое сворачивает кодовую страницу пробное имя\r\n");
+
+        // Кладём через юникод-ветку: на диске и внутри контейнера символ остаётся символом.
+        string container = Path.Combine(dir, "codepage.cc");
+        Check(PackW(plugin, container, null, srcDir, new[] { oddName, okName }, 0) == 0,
+            "PackFilesW положил в контейнер запись, имя которой ANSI-ветка выразить не сможет");
+        CheckListing(ReadListing(plugin, container, verbose: false), model,
+            "юникод-список: имя с символом показано дословно, кодовая страница помехой не стала");
+        Check(VerifyAllW(plugin, container) == 0, "PK_TEST (W) читает запись с символом вне кодовой страницы без ошибок");
+        Check(ExtractAllW(plugin, container, Path.Combine(dir, "out-w")) == 0,
+            "PK_EXTRACT (W) извлёк обе записи без единой ошибки");
+        Check(File.Exists(Path.Combine(dir, "out-w", oddName)),
+            $"файл {Quote(oddName)} лёг на диск юникод-веткой — трудность только в ANSI-отображении имени");
+
+        // Теперь ANSI: список показывает проекцию, проверка проходит, извлечение спотыкается о «?» или пишет проекцию.
+        Check(VerifyAllA(plugin, container) == 0,
+            "PK_TEST (ANSI) прошёл по записи с «?» без ошибок: проверка ничего не пишет на диск");
+
+        string outA = Path.Combine(dir, "out-a");
+        List<(string Name, int Code)> extractedA = ExtractAllA(plugin, container, outA);
+        Check(extractedA.Count == model.Files.Count,
+            $"ANSI-цикл прочитал {extractedA.Count} записей, ожидалось {model.Files.Count}");
+
+        (string oddActual, int oddCode) = extractedA.FirstOrDefault(entry => NameEquals(entry.Name, oddProjected));
+        Check(oddActual.Length > 0,
+            $"ANSI-листинг показал {Quote(oddName)} как его проекцию {Quote(oddProjected)} "
+            + $"(в списке: {Join(extractedA.Select(entry => Quote(entry.Name)))})");
+
+        string[] expectedOnDisk = projectedIsLegal ? [okName, oddProjected] : [okName];
+        if (!projectedIsLegal)
+        {
+            Check(oddCode == Wcx.E_EWRITE,
+                $"ANSI PK_EXTRACT имени с «?» вернул {Wcx.ErrorName(oddCode)}, ожидался E_EWRITE: "
+                + "плагин не делает вид, что записал файл, которого диск создать не дал");
+        }
+        else
+        {
+            Check(oddCode == 0,
+                $"ANSI PK_EXTRACT имени {Quote(oddProjected)} вернул {Wcx.ErrorName(oddCode)}: "
+                + "кодовая страница выразила имя допустимо, и извлечение удалось");
+        }
+
+        Check(extractedA.Any(entry => NameEquals(entry.Name, okName) && entry.Code == 0)
+            && File.Exists(Path.Combine(outA, okName)),
+            $"обычная запись {Quote(okName)} извлечена ANSI-веткой без ошибок — сбой касается только проблемного имени");
+
+        List<string> leftOnDisk = Directory.Exists(outA)
+            ? Directory.GetFiles(outA).Select(path => Path.GetFileName(path) ?? string.Empty).ToList()
+            : new List<string>();
+        Check(leftOnDisk.Count == expectedOnDisk.Length
+                && expectedOnDisk.All(name => leftOnDisk.Any(left => NameEquals(left, name))),
+            $"ANSI-извлечение оставило на диске {Join(leftOnDisk)}, ожидалось {Join(expectedOnDisk)}: "
+            + "«?»-имя не появилось и не было подменено другим");
+
+        // Та же проекция, пришедшая со стороны хоста, не должна попасть в контейнер, если имя с «?».
+        string oddContainer = Path.Combine(dir, "odd-pack.cc");
+        int packCode = PackA(plugin, oddContainer, null, srcDir, new[] { oddProjected }, 0);
+        if (!projectedIsLegal)
+        {
+            Check(packCode == Wcx.E_NOT_SUPPORTED,
+                $"ANSI PackFiles имени {Quote(oddProjected)} вернул {Wcx.ErrorName(packCode)}, "
+                + "ожидался E_NOT_SUPPORTED: имя с «?» в контейнер кладётся только честным именем источника");
+            Check(!File.Exists(oddContainer), "отказ произошёл до записи — частичного контейнера нет");
+        }
+        else
+        {
+            Check(packCode == 0,
+                $"ANSI PackFiles имени {Quote(oddProjected)} вернул {Wcx.ErrorName(packCode)}: кодовая страница "
+                + "имя вмещает, и отказывал бы плагин только по настоящему поводу");
+            Check(File.Exists(oddContainer)
+                    && ReadListing(plugin, oddContainer, verbose: false).Any(entry => NameEquals(entry.Name, oddProjected)),
+                $"ANSI PackFiles создал контейнер с записью {Quote(oddProjected)} — ветка не теряет имена по дороге");
+        }
+
+        CheckListing(ReadListing(plugin, container, verbose: false), model,
+            "контейнер после отказов и неудачного извлечения не изменился ни на запись");
 
         Console.WriteLine();
     }
@@ -795,6 +935,119 @@ internal static unsafe partial class Program
                 }
 
                 if (plugin.ProcessFileW(handle, Wcx.PK_TEST, null, null) != 0)
+                    errors++;
+            }
+
+            plugin.CloseArchive(handle);
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// ANSI-близнец ExtractAllW: те же вызовы без суффикса W, имена читаются из CP_ACP и передаются
+    /// обратно как есть. Возвращает список (имя из ANSI-листинга, код ProcessFile) — проход 16
+    /// сверяет и имя, и код: у непредставимого имени кода это отдельная проверка.
+    /// </summary>
+    private static List<(string Name, int Code)> ExtractAllA(Plugin plugin, string container, string target)
+    {
+        var results = new List<(string Name, int Code)>();
+        Recreate(target);
+
+        byte[] ansiArchive = AnsiCodePage.ToAnsiZ(container);
+        byte[] ansiTarget = AnsiCodePage.ToAnsiZ(target);
+        byte[] comment = new byte[4096];
+
+        fixed (byte* archiveName = ansiArchive)
+        fixed (byte* commentBuffer = comment)
+        fixed (byte* targetPath = ansiTarget)
+        {
+            tOpenArchiveData data = default;
+            data.ArcName = archiveName;
+            data.OpenMode = Wcx.PK_OM_EXTRACT;
+            data.CmtBuf = commentBuffer;
+            data.CmtBufSize = comment.Length;
+
+            nint handle = plugin.OpenArchive(&data);
+            if (handle == 0)
+            {
+                Fail($"OpenArchive(PK_OM_EXTRACT) для {Quote(container)} вернул 0 "
+                    + $"(OpenResult = {Wcx.ErrorName(data.OpenResult)})");
+                return results;
+            }
+
+            while (true)
+            {
+                tHeaderDataEx header = default;
+                header.CmtBuf = commentBuffer;
+                header.CmtBufSize = comment.Length;
+
+                int code = plugin.ReadHeaderEx(handle, &header);
+                if (code == Wcx.E_END_ARCHIVE)
+                    break;
+
+                if (code != 0)
+                {
+                    Fail($"ANSI ReadHeaderEx в {Quote(container)} вернул {Wcx.ErrorName(code)}");
+                    break;
+                }
+
+                byte* raw = (byte*)&header;
+                string name = AnsiCodePage.FromAnsi(raw + WcxAnsi.OffExFileName, WcxAnsi.ExNameBytes);
+
+                byte[] ansiName = AnsiCodePage.ToAnsiZ(name);
+                fixed (byte* entryName = ansiName)
+                    results.Add((name, plugin.ProcessFile(handle, Wcx.PK_EXTRACT, targetPath, entryName)));
+            }
+
+            plugin.CloseArchive(handle);
+        }
+
+        return results;
+    }
+
+    /// <summary>ANSI-близнец VerifyAllW: PK_TEST без суффикса W. На диск не пишет — потому и проходит.</summary>
+    private static int VerifyAllA(Plugin plugin, string container)
+    {
+        int errors = 0;
+
+        byte[] ansiArchive = AnsiCodePage.ToAnsiZ(container);
+        byte[] comment = new byte[4096];
+
+        fixed (byte* archiveName = ansiArchive)
+        fixed (byte* commentBuffer = comment)
+        {
+            tOpenArchiveData data = default;
+            data.ArcName = archiveName;
+            data.OpenMode = Wcx.PK_OM_EXTRACT;
+            data.CmtBuf = commentBuffer;
+            data.CmtBufSize = comment.Length;
+
+            nint handle = plugin.OpenArchive(&data);
+            if (handle == 0)
+            {
+                Fail($"OpenArchive для PK_TEST вернул 0 для {Quote(container)}");
+                return -1;
+            }
+
+            while (true)
+            {
+                tHeaderDataEx header = default;
+                header.CmtBuf = commentBuffer;
+                header.CmtBufSize = comment.Length;
+
+                int code = plugin.ReadHeaderEx(handle, &header);
+                if (code == Wcx.E_END_ARCHIVE)
+                    break;
+
+                if (code != 0)
+                {
+                    Fail($"ANSI ReadHeaderEx в {Quote(container)} вернул {Wcx.ErrorName(code)}");
+                    errors++;
+                    break;
+                }
+
+                if (plugin.ProcessFile(handle, Wcx.PK_TEST, null, null) != 0)
                     errors++;
             }
 

@@ -38,7 +38,7 @@ dotnet test Container_V3.sln -c Release
 dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release --filter "Category!=WcxNative"
 
 # тяжёлые: NativeAOT-плагин и полный прогон харнесса (нужен MSVC)
-dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release --filter "Category=WcxNative"
+dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release -p:Platform=x64 --filter "Category=WcxNative"
 ```
 
 Ключ фильтра — `Category`: адаптер VSTest кладёт `[Trait("Category", ...)]` в свойство
@@ -46,6 +46,8 @@ dotnet test ContainerWcx.Tests\ContainerWcx.Tests.csproj -c Release --filter "Ca
 
 Переменные среды для тестов плагина: `WCX_REBUILD=1` (пересобрать плагин),
 `WCX_BUILD_PLUGIN=0` (запретить сборку, использовать готовый `publish\wcx-plugin`),
+`WCX_HARNESS_PLATFORM=x64` (платформа, которую фикстуар передаёт своим `dotnet build`
+и `dotnet publish`; нужен, когда хост тестов не получает `Platform` из окружения),
 `WCX_GUI=1` (разрешить проход 14.1 — диалог «Настроить» требует интерактивного рабочего
 стола, поэтому в CI он не запускается).
 

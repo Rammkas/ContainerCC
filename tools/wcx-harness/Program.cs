@@ -125,6 +125,7 @@ internal static unsafe partial class Program
 
             RunPack(plugin, options);
             RunPackAnsi(plugin, options);
+            RunAnsiCodePageQuirk(plugin, options);
         }
         catch (Exception ex)
         {
@@ -1271,10 +1272,12 @@ internal static unsafe partial class Program
         ResetFolder(target);
 
         // Отдельная папка: вариант «полный путь в DestName, DestPath = NULL» не должен мешать
-        // сверке основного ANSI-извлечения с оригиналом.
+        // сверке основного ANSI-извлечения с оригиналом. Имя цели — через Pick: ANSI-ветка
+        // получает его байтами CP_ACP, непредставимое имя стало бы «?» и ломала бы не плагин, а проверку.
         string variantDir = Path.Combine(options.AnsiWorkDir, "ansi-variants");
         ResetFolder(variantDir);
-        string variantFile = Path.Combine(variantDir, "полный путь в ansi.txt");
+        string variantFile = Path.Combine(variantDir,
+            CodePageNames.Pick("полный путь в ansi.txt", "pólnyj pút v ansi.txt", "full path in ansi.txt"));
 
         byte[] ansiArchive = AnsiCodePage.ToAnsiZ(options.Container);
         byte[] ansiTarget = AnsiCodePage.ToAnsiZ(target);
@@ -1648,9 +1651,13 @@ internal static unsafe partial class Program
     {
         Section("проход 13: ANSI-ветка на битых входах, пустом имени и чужом handle");
 
-        string notAContainer = Path.Combine(options.AnsiWorkDir, "не-контейнер-ansi.txt");
+        // Имена scratch-файлов — по текущей CP_ACP: ANSI-открытие передаёт их плагину байтами
+        // кодовой страницы, непредставимое имя пришло бы как «?» и проверяло бы кодовую страницу машины.
+        string notAContainer = Path.Combine(options.AnsiWorkDir,
+            CodePageNames.Pick("не-контейнер-ansi.txt", "not-a-container-ansi.txt"));
         File.WriteAllText(notAContainer, "это не контейнер Container_V3; ANSI-ветка обязана честно отказать.");
-        string missing = Path.Combine(options.AnsiWorkDir, "нет-такого-файла-ansi.cc");
+        string missing = Path.Combine(options.AnsiWorkDir,
+            CodePageNames.Pick("нет-такого-файла-ansi.cc", "no-such-file-ansi.cc"));
 
         Check(RefuseOpenAnsi(plugin, notAContainer, "ANSI-открытие обычного текстового файла"), "ANSI-отказ на текстовом файле корректный (handle = 0, OpenResult = понятный код)");
         Check(RefuseOpenAnsi(plugin, missing, "ANSI-открытие отсутствующего .cc"), "ANSI-отказ на отсутствующем файле корректный");

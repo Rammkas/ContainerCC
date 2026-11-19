@@ -187,6 +187,18 @@ internal static unsafe class AnsiCodePage
         return trimmed;
     }
 
+    /// <summary>
+    /// Как имя увидит ANSI-ветка: round-trip через CP_ACP. Непредставимые символы Win32
+    /// заменяет знаком «?» — ровно то, что передаст хост Total Commander. Нужено, чтобы
+    /// харнесс сверял ANSI-листинг не «на глаз», с фактической проекцией имени.
+    /// </summary>
+    public static string Project(string value)
+    {
+        byte[] ansi = ToAnsi(value);
+        fixed (byte* pointer = ansi)
+            return FromAnsi(pointer, ansi.Length);
+    }
+
     /// <summary>char* (ANSI) → строка: байты CP_ACP декодируются в UTF-16. null → пустая строка.</summary>
     public static string FromAnsi(byte* ansi, int maxBytes)
     {

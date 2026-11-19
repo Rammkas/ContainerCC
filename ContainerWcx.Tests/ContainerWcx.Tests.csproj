@@ -30,4 +30,11 @@
     <ProjectReference Include="..\Container.Core\Container.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Общий с харнессом выбор имён по кодовой странице системы: ANSI-проходам нужны имена,
+         представимые в текущем CP_ACP (1251 дома, 1252 в CI). Файл без unsafe — тестовый
+         проект собран без AllowUnsafeBlocks; харнесс подхватывает его своим glob'ом. -->
+    <Compile Include="..\tools\wcx-harness\CodePageNames.cs" Link="CodePageNames.cs" />
+  </ItemGroup>
+
 </Project>

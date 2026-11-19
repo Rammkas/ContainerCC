@@ -212,22 +212,29 @@ public class WcxLayoutFixture : IDisposable
 
     /// <summary>
     /// То же дерево, что генерировал .harness\make_src.py: файл, делящий чанк, пустые файлы и
-    /// папки, псевдослучайные несжимаемые данные, кириллические имена (ANSI-проходам нужны имена,
-    /// представимые в code page 1251), длинное вложенное имя и имя с пробелом.
+    /// папки, псевдослучайные несжимаемые данные, неascii-имена, длинное вложенное имя и имя с
+    /// пробелом. Имена ANSI-проходам нужны представимые в кодовой странице системы — иначе хост
+    /// донёс бы их плагину как «?», и проверялась бы кодовая страница машины, а не плагин: берём
+    /// кириллицу там, где она представима (дома CP_ACP = 1251), и латиницу с диакритикой там, где
+    /// её нет (в CI CP_ACP = 1252).
     /// </summary>
     protected void BuildSourceTree()
     {
         var random = new Random(20261117);
 
         WriteText("readme.txt", "Container_V3 harness fixture\n", 420);
-        WriteText(Path.Combine("notes", "план-конспект.txt"), "Container_V3 harness fixture\n", 2048);
-        WriteText(Path.Combine("notes", "подпапка", "заметка.md"), "Container_V3 harness fixture\n", 900);
+        WriteText(Path.Combine("notes", Pick("план-конспект.txt", "plán-kónspékt.txt", "plan-konspekt.txt")),
+            "Container_V3 harness fixture\n", 2048);
+        WriteText(Path.Combine("notes", Pick("подпапка", "pódpapka", "podpapka"),
+            Pick("заметка.md", "zámêtka.md", "zametka.md")), "Container_V3 harness fixture\n", 900);
 
         WriteRandom(Path.Combine("data", "big.bin"), 3_000_000, random);
         WriteRandom(Path.Combine("data", "medium.bin"), 131_072, random);
         WriteRandom(Path.Combine("data", "empty.bin"), 0, random);
-        WriteRandom(Path.Combine("data", "nested", "a", "b", "c", "глубокий", "файл.bin"), 4096, random);
-        WriteRandom(Path.Combine("data", "диск", "файл с пробелами.bin"), 5000, random);
+        WriteRandom(Path.Combine("data", "nested", "a", "b", "c", Pick("глубокий", "glubókiy", "glubokiy"),
+            Pick("файл.bin", "fájl.bin", "file.bin")), 4096, random);
+        WriteRandom(Path.Combine("data", Pick("диск", "dísk", "disk"),
+            Pick("файл с пробелами.bin", "fájl s probélami.bin", "file with spaces.bin")), 5000, random);
 
         WriteRandom(Path.Combine("images", "photo-01.png"), 60_000, random);
         WriteRandom(Path.Combine("images", "photo-02.png"), 61_000, random);
@@ -237,6 +244,9 @@ public class WcxLayoutFixture : IDisposable
         Directory.CreateDirectory(Path.Combine(SourceDir, "empty-dir"));
         Directory.CreateDirectory(Path.Combine(SourceDir, "empty-dir2", "inner"));
     }
+
+    /// <summary>Имя, которое кодовая страница системы донесёт до плагина байтами в целости.</summary>
+    private static string Pick(params string[] candidates) => CodePageNames.Pick(candidates);
 
     private void WriteText(string relative, string line, int size)
     {
@@ -440,6 +450,7 @@ public sealed class WcxHarnessFixture : WcxLayoutFixture
         "проход 13: ANSI-ветка на битых входах, пустом имени и чужом handle",
         "проход 14: упаковка (PackFilesW) и удаление (DeleteFilesW) — контейнер как обычная папка",
         "проход 15: ANSI-упаковка (PackFiles/DeleteFiles) и чтение юникод-веткой",
+        "проход 16: имена вне кодовой страницы системы — ANSI-ветка и символ, ставший «?»",
     ];
 
     public WcxHarnessFixture()
