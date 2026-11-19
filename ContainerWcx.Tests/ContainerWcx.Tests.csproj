@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- xUnit-обёртка над харнессом WCX (tools\wcx-harness): тесты не лезут внутрь плагина,
+       а запускают харнесс как отдельный процесс и разбирают его machine-readable итог
+       (флаг results, TSV). Так проверка живёт в той же инфраструктуре, что и тесты ядра:
+       dotnet test, CI, IDE. Харнесс намеренно не ProjectReference: его типы internal,
+       а границы процесса надёжнее, чем InternalsVisibleTo. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>ContainerWcx.Tests</AssemblyName>
+    <RootNamespace>Container_V3.WcxTests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Плагин и харнесс — x64 (LoadLibrary грузит нативный DLL по адресу x64),
+         значит и тестовый процесс обязан быть x64. -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Только ядро: фикстуар тестов упаковывает тестовое дерево тем же ContainerPacker,
+         что и CLI, вместо чужих заготовок в gitignore-папке .harness. -->
+    <ProjectReference Include="..\Container.Core\Container.Core.csproj" />
+  </ItemGroup>
+
+</Project>

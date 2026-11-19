@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace WcxHarness;
 
@@ -14,17 +15,43 @@ namespace WcxHarness;
 ///   --workdir   <папка для распаковки>   обязательный, пересоздаётся
 ///   --compare-plugin <путь к .wcx64>     необязательный: другой реальныx WCX-плагин
 ///   --compare-archive <путь к архиву>    для сравнения: как он описывает папки
+///   --results <путь к .tsv>              machine-readable итог: секция, проверка, OK/FAIL
+///                                        (нужен xUnit-обёртке ContainerWcx.Tests)
+///   --layout-only                        только проверки раскладки структур: плагин и контейнер
+///                                        не нужны, секции проходов не открываются
+///   --skip-settings                      пропустить проход 14.1 (диалог «Настроить» требует
+///                                        интерактивного рабочего стола, в CI его нет)
 /// </summary>
 internal static unsafe partial class Program
 {
     private static readonly List<string> Failures = new();
     private static int _checks;
 
+    /// <summary>Отметка о каждой проверке с её секцией — для --results. Порядок = порядок вызовов.</summary>
+    private readonly record struct CheckRecord(string Section, string What, bool Ok);
+
+    private static readonly List<CheckRecord> Records = new();
+    private static string _currentSection = "без секции";
+
+    /// <summary>Куда --results пишет machine-readable итог (null — не пишем).</summary>
+    private static string? ResultsPath;
+
     private static int Main(string[] args)
     {
         Options? options = Options.Parse(args);
         if (options is null)
             return 2;
+
+        ResultsPath = options.ResultsPath;
+
+        if (options.LayoutOnly)
+        {
+            // Раскладку структур сверяем с официальным wcxhead.h — плагин для этого не нужен,
+            // поэтому тесты раскладки гоняют харнесс без --plugin/--container/--source/--workdir.
+            CheckLayout();
+            CheckAnsiLayout();
+            return Report();
+        }
 
         Console.WriteLine($"Плагин:    {options.Plugin}");
         Console.WriteLine($"Контейнер: {options.Container}");
@@ -1798,11 +1825,16 @@ internal static unsafe partial class Program
         return string.Join(", ", list) + (total > list.Count ? $" … всего {total}" : string.Empty);
     }
 
-    private static void Section(string title) => Console.WriteLine("=== " + title + " ===");
+    private static void Section(string title)
+    {
+        _currentSection = title;
+        Console.WriteLine("=== " + title + " ===");
+    }
 
     private static void Check(bool ok, string what)
     {
         _checks++;
+        Records.Add(new CheckRecord(_currentSection, what, ok));
         Console.WriteLine($"  {(ok ? "OK   " : "ПРОВАЛ")} {what}");
         if (!ok)
             Failures.Add(what);
@@ -1811,6 +1843,7 @@ internal static unsafe partial class Program
     private static void Fail(string what)
     {
         _checks++;
+        Records.Add(new CheckRecord(_currentSection, what, false));
         Console.WriteLine($"  ПРОВАЛ {what}");
         Failures.Add(what);
     }
@@ -1825,7 +1858,25 @@ internal static unsafe partial class Program
         foreach (string failure in Failures)
             Console.WriteLine("  ! " + failure);
 
+        WriteResults();
         return Failures.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Тав-разделённый итог для тестов: "section\tOK|FAIL\twhat". Имена секций и тексты проверок
+    /// не содержат табуляции, поэтому файл разбирается без экранирования.
+    /// </summary>
+    private static void WriteResults()
+    {
+        if (ResultsPath is null)
+            return;
+
+        string path = Path.GetFullPath(ResultsPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var writer = File.CreateText(path);
+        writer.WriteLine("section\tresult\twhat");
+        foreach (CheckRecord record in Records)
+            writer.WriteLine($"{record.Section}\t{(record.Ok ? "OK" : "FAIL")}\t{record.What}");
     }
 
     /// <summary>Делегат tProcessDataProcW: TC зовёт его, плагин сообщает прогресс и слышит «стоп».</summary>
@@ -1934,20 +1985,28 @@ internal sealed class Options
     public string AnsiWorkDir { get; set; } = string.Empty;
     public string? ComparePlugin { get; set; }
     public string? CompareArchive { get; set; }
+    public string? ResultsPath { get; set; }
+    public bool LayoutOnly { get; set; }
+    public bool SkipSettings { get; set; }
 
     public static Options? Parse(string[] args)
     {
         Options options = new();
 
-        for (int i = 0; i < args.Length; i += 2)
+        // Флаги без значения (--layout-only, --skip-settings) сдвигают индекс на 1, параметры
+        // вида «--флаг значение» — на 2; иначе флаги съели бы следующий флаг как своё значение.
+        for (int i = 0; i < args.Length;)
         {
-            if (i + 1 >= args.Length)
+            string flag = args[i];
+            bool needsValue = flag is not ("--layout-only" or "--skip-settings");
+
+            if (needsValue && i + 1 >= args.Length)
             {
-                Console.WriteLine($"Не хватает значения после {args[i]}");
+                Console.WriteLine($"Не хватает значения после {flag}");
                 return null;
             }
 
-            switch (args[i])
+            switch (flag)
             {
                 case "--plugin": options.Plugin = Path.GetFullPath(args[i + 1]); break;
                 case "--container": options.Container = Path.GetFullPath(args[i + 1]); break;
@@ -1955,27 +2014,37 @@ internal sealed class Options
                 case "--workdir": options.WorkDir = Path.GetFullPath(args[i + 1]); break;
                 case "--compare-plugin": options.ComparePlugin = Path.GetFullPath(args[i + 1]); break;
                 case "--compare-archive": options.CompareArchive = Path.GetFullPath(args[i + 1]); break;
+                case "--results": options.ResultsPath = Path.GetFullPath(args[i + 1]); break;
+                case "--layout-only": options.LayoutOnly = true; break;
+                case "--skip-settings": options.SkipSettings = true; break;
                 default:
-                    Console.WriteLine($"Неизвестный параметр {args[i]}");
+                    Console.WriteLine($"Неизвестный параметр {flag}");
                     return null;
             }
+
+            i += needsValue ? 2 : 1;
         }
 
-        if (options.Plugin.Length == 0 || options.Container.Length == 0 || options.Source.Length == 0 || options.WorkDir.Length == 0)
+        bool layoutOnly = options.LayoutOnly;
+        if (!layoutOnly && (options.Plugin.Length == 0 || options.Container.Length == 0 || options.Source.Length == 0 || options.WorkDir.Length == 0))
         {
             Console.WriteLine("Нужны --plugin, --container, --source и --workdir");
             return null;
         }
 
-        Directory.CreateDirectory(options.WorkDir);
+        if (!layoutOnly)
+            Directory.CreateDirectory(options.WorkDir);
 
         // ANSI-проходы пишут в свою папку: если --workdir уже назван «…-ansi», он и есть ANSI-папка,
         // иначе рядом создаётся «<workdir>-ansi» — артефакты «первого издания» не попадают
         // в рабочую папку Unicode-проходов (.harness\work остаётся нетронутым).
-        options.AnsiWorkDir = options.WorkDir.EndsWith("-ansi", StringComparison.OrdinalIgnoreCase)
-            ? options.WorkDir
-            : options.WorkDir + "-ansi";
-        Directory.CreateDirectory(options.AnsiWorkDir);
+        if (!layoutOnly)
+        {
+            options.AnsiWorkDir = options.WorkDir.EndsWith("-ansi", StringComparison.OrdinalIgnoreCase)
+                ? options.WorkDir
+                : options.WorkDir + "-ansi";
+            Directory.CreateDirectory(options.AnsiWorkDir);
+        }
 
         return options;
     }

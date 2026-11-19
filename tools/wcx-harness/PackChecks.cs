@@ -250,7 +250,16 @@ internal static unsafe partial class Program
         CheckRefusals(plugin, container, srcDir, packDir);
 
         // ── 14.1 настройки пакера: ini из PackSetDefaultParams и диалог «Настроить»
-        RunPackerSettings(plugin, options, settingsIni);
+        if (options.SkipSettings)
+        {
+            Section("проход 14.1: настройки пакера — ini из PackSetDefaultParams и диалог «Настроить»");
+            Console.WriteLine("  ПРОПУСК: --skip-settings — диалог «Настроить» требует интерактивного рабочего стола");
+            Console.WriteLine();
+        }
+        else
+        {
+            RunPackerSettings(plugin, options, settingsIni);
+        }
 
         Console.WriteLine();
     }
